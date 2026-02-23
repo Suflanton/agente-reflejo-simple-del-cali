@@ -42,7 +42,7 @@ GEMINI_API_KEY=tu_clave_aqui
 GEMINI_API_KEY=AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### 3. Modelo (opcional)
+### 3. Modelo 
 
 Por defecto se usa `gemini-2.0-flash`. Para cambiar, añade en `.env`:
 
