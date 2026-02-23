@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ratoncito buscando la Libertadores</title>
+  <link rel="icon" type="image/jpeg" href="/media/solo_verde.jpg"/>
+  <script type="text/javascript" src="/eel.js"></script>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <style data-purpose="custom-animations">
+    @keyframes pulse-soft {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .animate-pulse-soft {
+      animation: pulse-soft 2s infinite ease-in-out;
+    }
+  </style>
+  <style data-purpose="layout-and-glassmorphism">
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      font-family: "Inter", sans-serif;
+    }
+    #app-background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      z-index: -1;
+    }
+    .glass-sidebar {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .maze-grid-container {
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(4px);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+    .maze-cell {
+      background-color: #2d5a27;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      position: relative;
+    }
+    .maze-wall {
+      background-color: #1a3d16;
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    .glass-chat {
+      background: rgba(248, 250, 252, 0.85);
+      backdrop-filter: blur(12px);
+    }
+    #chat-sidebar {
+      transition: transform 0.3s ease, width 0.3s ease, opacity 0.3s ease;
+      transform: translateX(100%);
+      width: 0;
+      opacity: 0;
+      overflow: hidden;
+      border: none;
+    }
+    #chat-sidebar.chat-visible {
+      transform: translateX(0);
+      width: 20rem;
+      opacity: 1;
+      overflow-y: auto;
+    }
+    @media (min-width: 1024px) {
+      #chat-sidebar.chat-visible { width: 24rem; }
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .modal-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #maze-grid-edit input {
+      width: 1.8rem;
+      height: 1.8rem;
+      text-align: center;
+      font-size: 0.7rem;
+    }
+    .modal-box {
+      background: linear-gradient(135deg, #1a472a 0%, #2d5a27 100%);
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 1rem;
+      padding: 2rem;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    }
+    .maze-empty-msg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: rgba(255,255,255,0.6);
+      font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body class="flex h-screen overflow-hidden text-white">
+  <div id="app-background"></div>
+
+  <aside class="glass-sidebar w-24 lg:w-32 flex flex-col items-center py-8 space-y-8 z-10" data-purpose="navigation-sidebar">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg mb-4 overflow-hidden bg-green-800" id="logo-sidebar">
+      <img src="/media/solo_verde.jpg" alt="Solo verde" class="w-full h-full object-cover" onerror="this.style.display='none';this.parentElement.classList.add('bg-green-600')"/>
+    </div>
+    <button class="group flex flex-col items-center p-3 rounded-xl hover:bg-white/10 transition-all duration-200" data-purpose="btn-cargar">
+      <div class="p-3 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+        </svg>
+      </div>
+      <span class="text-xs mt-2 font-semibold uppercase tracking-wider">Cargar</span>
+    </button>
+    <button class="group flex flex-col items-center p-3 rounded-xl hover:bg-white/10 transition-all duration-200" data-purpose="btn-random">
+      <div class="p-3 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+        </svg>
+      </div>
+      <span class="text-xs mt-2 font-semibold uppercase tracking-wider">Random</span>
+    </button>
+    <button class="group flex flex-col items-center p-3 rounded-xl hover:bg-white/10 transition-all duration-200" data-purpose="btn-buscar">
+      <div class="p-3 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+        </svg>
+      </div>
+      <span class="text-xs mt-2 font-semibold uppercase tracking-wider">Buscar</span>
+    </button>
+    <button class="group flex flex-col items-center p-3 rounded-xl hover:bg-white/10 transition-all duration-200" data-purpose="btn-chat">
+      <div class="p-3 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+        </svg>
+      </div>
+      <span class="text-xs mt-2 font-semibold uppercase tracking-wider">Chat</span>
+    </button>
+  </aside>
+
+  <main class="flex-1 flex items-center justify-center p-8 relative overflow-hidden" data-purpose="maze-game-section">
+    <div class="absolute right-0 top-1/4 bottom-1/4 w-[1px] bg-gradient-to-b from-transparent via-white/40 to-transparent"></div>
+    <div class="maze-grid-container p-4 rounded-2xl shadow-2xl">
+      <div class="flex items-center justify-between mb-4 px-2">
+        <h2 class="text-xl font-bold italic tracking-tighter uppercase text-green-300">Ratoncito buscando la Libertadores</h2>
+        <div id="timer-display" class="text-sm font-mono bg-black/40 px-3 py-1 rounded-full border border-white/10">Time: 00:00</div>
+      </div>
+      <div class="grid grid-cols-10 grid-rows-10 gap-1 w-[700px] h-[700px] bg-white/10 p-1 border border-white/20 relative" id="maze-grid"></div>
+    </div>
+    <div id="modal-overlay" class="modal-overlay">
+      <div class="modal-box">
+        <h3 id="modal-title" class="text-xl font-bold text-white mb-2"></h3>
+        <p id="modal-message" class="text-green-100 mb-4"></p>
+        <button id="modal-close" class="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-semibold transition-colors">Cerrar</button>
+      </div>
+    </div>
+    <div id="load-maze-modal" class="modal-overlay">
+      <div class="modal-box max-w-2xl text-left">
+        <h3 class="text-xl font-bold text-white mb-3">Cargar laberinto</h3>
+        <p class="text-green-100 text-sm mb-3">0=camino, 1=pared, 2=queso, 3=ratón. Rellena el grid o pega CSV (10 filas x 10 columnas):</p>
+        <div class="flex gap-4 mb-4">
+          <div id="maze-grid-edit" class="grid grid-cols-10 gap-0.5 bg-black/30 p-2 rounded-lg"></div>
+          <div class="flex-1">
+            <textarea id="maze-csv-input" class="w-full h-40 bg-black/30 text-green-100 rounded-lg p-2 text-xs font-mono resize-none" placeholder="2,0,1,0,0,0,1,0,0,0&#10;1,0,1,1,1,0,1,0,1,0&#10;..."></textarea>
+          </div>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button id="load-maze-default" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg font-semibold">Por defecto</button>
+          <button id="load-maze-generate" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-semibold">Generar</button>
+          <button id="load-maze-close" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-semibold">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section id="chat-sidebar" class="glass-chat flex flex-col h-full z-10 border-l border-white/20 min-w-0 chat-visible" data-purpose="ai-chat-sidebar">
+    <header class="p-6 border-b border-gray-200 flex items-center justify-between bg-white/40 shrink-0">
+      <div class="flex items-center space-x-3">
+        <div class="relative">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-md overflow-hidden bg-green-800">
+            <img id="chat-avatar" src="/media/ratoncito_regordete_del_cali_frente.png" alt="Ratoncito" class="w-full h-full object-cover" onerror="this.style.display='none'"/>
+          </div>
+          <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+        </div>
+        <div>
+          <h3 class="text-gray-900 font-bold leading-none">Ratoncito del Cali</h3>
+          <span class="text-xs text-green-600 font-medium uppercase tracking-tight">¡Solo verde!</span>
+        </div>
+      </div>
+      <button id="chat-close" class="p-2 rounded-lg hover:bg-gray-200 text-gray-600 transition-colors" title="Cerrar chat">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </header>
+    <div class="flex-1 overflow-y-auto p-6 space-y-4" data-purpose="chat-history" id="chat-history">
+      <div class="flex flex-col items-start">
+        <div class="bg-green-900 text-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[85%] text-sm">
+          ¡Hola parce! Soy el Ratoncito del Cali. Busco la Copa Libertadores por el laberinto. Haz clic en Buscar para que busque el camino, o pregúntame lo que quieras. !SOLO VERDEEEEEEEEEEE¡
+        </div>
+        <span class="text-[10px] text-gray-500 mt-1 ml-1" id="msg-time-0"></span>
+      </div>
+    </div>
+    <footer class="p-6 bg-white/40 border-t border-gray-200">
+      <div class="relative">
+        <input id="chat-input" class="w-full bg-white border border-gray-300 rounded-full py-3 px-5 pr-12 text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all" placeholder="Pregúntale al Ratoncito..." type="text"/>
+        <button id="chat-send" class="absolute right-2 top-2 bottom-2 w-10 bg-green-700 text-white rounded-full flex items-center justify-center hover:bg-green-800 transition-colors">
+          <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path>
+          </svg>
+        </button>
+      </div>
+    </footer>
+  </section>
+
+  <script>
+    const grid = document.getElementById('maze-grid');
+    const chatHistory = document.getElementById('chat-history');
+    const chatInput = document.getElementById('chat-input');
+    const chatSend = document.getElementById('chat-send');
+    const timerDisplay = document.getElementById('timer-display');
+    const size = 10;
+
+    let mazeData = [];
+    let mousePos = { x: 0, y: 0 };
+    let cheesePos = { x: 9, y: 9 };
+    let gameWon = false;
+    let timerStart = null;
+    let timerInterval = null;
+    let msgCounter = 0;
+    let mediaUrls = { mouse: null, mouseFrente: null, mouseAtras: null, mouseIzq: null, mouseDer: null, wall: null, cheese: null };
+    let mazeLoaded = false;
+    let currentMouseDir = 'frente';
+    let isAnimating = false;
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return pad(m) + ':' + pad(s);
+    }
+
+    function startTimer() {
+      if (timerInterval) return;
+      timerStart = Date.now();
+      timerInterval = setInterval(() => {
+        const sec = Math.floor((Date.now() - timerStart) / 1000);
+        timerDisplay.textContent = 'Time: ' + formatTime(sec);
+      }, 1000);
+    }
+
+    function loadMazeFromBackend() {
+      if (typeof eel !== 'undefined') {
+        eel.loadMaze()(function(state) {
+          if (state) {
+            mazeLoaded = true;
+            mazeData = state.mazeData;
+            mousePos = state.mousePos;
+            cheesePos = state.cheesePos;
+            gameWon = false;
+            timerStart = null;
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = null;
+            timerDisplay.textContent = 'Time: 00:00';
+            renderMaze();
+            startTimer();
+          }
+        });
+      }
+    }
+
+
+    const dirToImg = { up: 'atras', down: 'frente', left: 'izq', right: 'der' };
+    function getMouseImgUrl(movementDir) {
+      const key = movementDir ? ('mouse' + (dirToImg[movementDir] || movementDir).charAt(0).toUpperCase() + (dirToImg[movementDir] || movementDir).slice(1)) : ('mouse' + currentMouseDir.charAt(0).toUpperCase() + currentMouseDir.slice(1));
+      return mediaUrls[key] || mediaUrls.mouse;
+    }
+
+    function renderMaze(mouseDirection) {
+      if (!mazeLoaded) {
+        grid.innerHTML = '<div class="maze-empty-msg" style="grid-column: 1/-1; grid-row: 1/-1;">Haz clic en <strong>Random</strong> para generar un laberinto</div>';
+        return;
+      }
+      const dir = mouseDirection || currentMouseDir;
+      grid.innerHTML = '';
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'maze-cell transition-all duration-300 rounded-sm';
+          const isWall = mazeData[y] && mazeData[y][x] === 1;
+          if (isWall) cell.classList.add('maze-wall');
+
+          if (isWall && mediaUrls.wall) {
+            cell.innerHTML = '<div class="absolute inset-0 flex items-center justify-center overflow-hidden rounded-sm"><img src="' + mediaUrls.wall + '" alt="obstáculo" class="w-full h-full object-cover"/></div>';
+          } else if (x === mousePos.x && y === mousePos.y) {
+            const mouseUrl = getMouseImgUrl(dir);
+            if (mouseUrl) {
+              cell.innerHTML = '<div class="absolute inset-0 flex items-center justify-center ' + (isAnimating ? '' : 'animate-pulse-soft') + '"><img src="' + mouseUrl + '" alt="ratón" class="w-[80%] h-[80%] object-contain drop-shadow-md"/></div>';
+            } else {
+              cell.innerHTML = '<div class="absolute inset-0 flex items-center justify-center ' + (isAnimating ? '' : 'animate-pulse-soft') + '"><span class="text-3xl filter drop-shadow-md">🐭</span></div>';
+            }
+          } else if (x === cheesePos.x && y === cheesePos.y) {
+            if (mediaUrls.cheese) {
+              cell.innerHTML = '<div class="absolute inset-0 flex items-center justify-center"><img src="' + mediaUrls.cheese + '" alt="queso" class="w-[80%] h-[80%] object-contain drop-shadow-md"/></div>';
+            } else {
+              cell.innerHTML = '<div class="absolute inset-0 flex items-center justify-center"><span class="text-3xl filter drop-shadow-md">🏆</span></div>';
+            }
+          }
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    function moveMouse(dir) {
+      if (!mazeLoaded || isAnimating || gameWon) return;
+      if (typeof eel !== 'undefined') {
+        eel.moveMouse(dir)(function(state) {
+          if (state) {
+            mousePos = state.mousePos;
+            cheesePos = state.cheesePos;
+            gameWon = state.gameWon || false;
+            renderMaze();
+            if (gameWon && timerInterval) clearInterval(timerInterval);
+          }
+        });
+      } else {
+        let newX = mousePos.x, newY = mousePos.y;
+        if (dir === 'up') newY--; else if (dir === 'down') newY++;
+        else if (dir === 'left') newX--; else if (dir === 'right') newX++;
+        if (newX >= 0 && newX < size && newY >= 0 && newY < size && mazeData[newY] && mazeData[newY][newX] !== 1) {
+          mousePos = { x: newX, y: newY };
+          if (newX === cheesePos.x && newY === cheesePos.y) gameWon = true;
+          renderMaze();
+        }
+      }
+    }
+
+    // El movimiento es solo por búsqueda automática (botón Buscar), no con flechas
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    function addChatMessage(content, isUser) {
+      if (!chatHistory) return;
+      msgCounter++;
+      const safe = escapeHtml(String(content || ''));
+      const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+      const alignClass = isUser ? 'items-end' : 'items-start';
+      const bubbleClass = isUser ? 'bg-green-100 text-green-900 border border-green-200 rounded-tr-none' : 'bg-green-900 text-white rounded-tl-none';
+      const timeClass = isUser ? 'mr-1' : 'ml-1';
+      const div = document.createElement('div');
+      div.className = 'flex flex-col ' + alignClass;
+      div.innerHTML = '<div class="' + bubbleClass + ' p-3 rounded-2xl shadow-sm max-w-[85%] text-sm">' + safe + '</div><span class="text-[10px] text-gray-500 mt-1 ' + timeClass + '">' + escapeHtml(time) + '</span>';
+      chatHistory.appendChild(div);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    const GAME_KEYWORDS = ['tablero', 'buscar', 'iniciar', 'comenzar', 'juego', 'empezar', 'juguemos', 'a buscar', 'el tablero', 'genera', 'crea'];
+    function isGameStartRequest(text) {
+      const t = text.toLowerCase();
+      return GAME_KEYWORDS.some(kw => t.includes(kw));
+    }
+
+    function sendChat() {
+      const text = (chatInput.value || '').trim();
+      if (!text) return;
+      chatInput.value = '';
+      if (chatSidebar) chatSidebar.classList.add('chat-visible');
+      if (btnChat) btnChat.classList.add('bg-white/20');
+      addChatMessage(text, true);
+
+      if (isGameStartRequest(text)) {
+        addChatMessage('¡Solo verde! Generando el tablero y buscando la Copa Libertadores...', false);
+        if (typeof eel !== 'undefined') {
+          eel.loadRandomMaze()(function(state) {
+            if (state) {
+              mazeLoaded = true;
+              mazeData = state.mazeData;
+              mousePos = state.mousePos;
+              cheesePos = state.cheesePos;
+              gameWon = false;
+              isAnimating = false;
+              timerStart = null;
+              if (timerInterval) clearInterval(timerInterval);
+              timerInterval = null;
+              timerDisplay.textContent = 'Time: 00:00';
+              renderMaze();
+              startTimer();
+              setTimeout(runBuscar, 300);
+            }
+          });
+        }
+        return;
+      }
+
+      if (typeof eel !== 'undefined') {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.setAttribute('data-loading', '1');
+        loadingDiv.className = 'flex flex-col items-start';
+        loadingDiv.innerHTML = '<div class="bg-green-900 text-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[85%] text-sm opacity-70">...</div>';
+        chatHistory.appendChild(loadingDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        eel.sendChatMessage(text)(function(response) {
+          const ld = chatHistory.querySelector('[data-loading]');
+          if (ld) ld.remove();
+          addChatMessage(response || 'Lo siento manito estoy en el estadio, más tarde te respondo', false);
+        });
+      } else {
+        addChatMessage('(Modo demo: sin backend)', false);
+      }
+    }
+
+    chatSend.addEventListener('click', sendChat);
+    chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+    function loadRandomMazeFromBackend() {
+      if (typeof eel !== 'undefined') {
+        eel.loadRandomMaze()(function(state) {
+          if (state) {
+            mazeLoaded = true;
+            mazeData = state.mazeData;
+            mousePos = state.mousePos;
+            cheesePos = state.cheesePos;
+            gameWon = false;
+            isAnimating = false;
+            timerStart = null;
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = null;
+            timerDisplay.textContent = 'Time: 00:00';
+            renderMaze();
+            startTimer();
+          }
+        });
+      }
+    }
+
+    function showModal(title, message) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-message').textContent = message;
+      document.getElementById('modal-overlay').classList.add('visible');
+    }
+
+    function runBuscar() {
+      if (!mazeLoaded) {
+        showModal('Sin laberinto', 'Primero haz clic en Random para generar un laberinto.');
+        return;
+      }
+      if (typeof eel === 'undefined') return;
+      isAnimating = true;
+      if (timerInterval) clearInterval(timerInterval);
+      eel.runMouseSearch()(function(result) {
+        if (!result) {
+          isAnimating = false;
+          showModal('Error', 'No hay laberinto cargado.');
+          return;
+        }
+        const history = result.history;
+        const moves = result.movement_history;
+        const res = result.result;
+        if (history.length === 0) {
+          isAnimating = false;
+          renderMaze();
+          return;
+        }
+        const delayMs = 400;
+        let idx = 0;
+        function step() {
+          if (idx >= history.length) {
+            isAnimating = false;
+            renderMaze();
+            if (res === 'loop') {
+              showModal('¡Loop!', 'El ratoncito se quedó atrapado en un bucle.');
+            } else if (res === 'win') {
+              showModal('¡Copa Libertadores! 🏆', '¡El ratoncito ganó la Copa Libertadores!');
+            }
+            return;
+          }
+          mousePos = history[idx];
+          const moveDir = idx > 0 ? moves[idx - 1] : 'frente';
+          renderMaze(moveDir);
+          idx++;
+          setTimeout(step, delayMs);
+        }
+        step();
+      });
+    }
+
+    const loadMazeModal = document.getElementById('load-maze-modal');
+    const mazeGridEdit = document.getElementById('maze-grid-edit');
+    const mazeCsvInput = document.getElementById('maze-csv-input');
+
+    function parseCsvToGrid(csvText) {
+      const rows = csvText.trim().split(/\r?\n/).filter(Boolean);
+      const grid = [];
+      for (let r = 0; r < 10; r++) {
+        const row = rows[r] ? rows[r].split(',').map(x => parseInt(x, 10) || 0).slice(0, 10) : [];
+        while (row.length < 10) row.push(0);
+        grid.push(row.slice(0, 10));
+      }
+      while (grid.length < 10) grid.push([0,0,0,0,0,0,0,0,0,0]);
+      return grid;
+    }
+    function gridToCsv(grid) {
+      return grid.map(row => row.join(',')).join('\n');
+    }
+    function buildEditGrid(grid) {
+      mazeGridEdit.innerHTML = '';
+      for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 10; x++) {
+          const inp = document.createElement('input');
+          inp.type = 'number';
+          inp.min = 0;
+          inp.max = 3;
+          inp.value = (grid[y] && grid[y][x] !== undefined) ? grid[y][x] : 0;
+          inp.dataset.y = y;
+          inp.dataset.x = x;
+          inp.className = 'bg-black/50 text-white border border-green-600/50 rounded';
+          inp.addEventListener('change', function() {
+            const v = parseInt(this.value, 10);
+            const val = (v >= 0 && v <= 3) ? v : 0;
+            this.value = val;
+            const g = parseCsvToGrid(mazeCsvInput.value);
+            g[parseInt(this.dataset.y)][parseInt(this.dataset.x)] = val;
+            mazeCsvInput.value = gridToCsv(g);
+          });
+          mazeGridEdit.appendChild(inp);
+        }
+      }
+    }
+    function csvToGridAndSync() {
+      const grid = parseCsvToGrid(mazeCsvInput.value);
+      mazeCsvInput.value = gridToCsv(grid);
+      buildEditGrid(grid);
+      return grid;
+    }
+    function openLoadMazeModal() {
+      if (typeof eel !== 'undefined') {
+        eel.getDefaultMazeCsv()(function(csv) {
+          mazeCsvInput.value = csv || '';
+          csvToGridAndSync();
+        });
+      }
+      loadMazeModal.classList.add('visible');
+    }
+    function closeLoadMazeModal() {
+      loadMazeModal.classList.remove('visible');
+    }
+    function applyMazeAndClose(state) {
+      if (state) {
+        mazeLoaded = true;
+        mazeData = state.mazeData;
+        mousePos = state.mousePos;
+        cheesePos = state.cheesePos;
+        gameWon = false;
+        isAnimating = false;
+        timerStart = null;
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = null;
+        timerDisplay.textContent = 'Time: 00:00';
+        renderMaze();
+        startTimer();
+      }
+      closeLoadMazeModal();
+    }
+
+    document.querySelector('[data-purpose="btn-cargar"]').addEventListener('click', openLoadMazeModal);
+
+    mazeCsvInput.addEventListener('blur', function() {
+      try { csvToGridAndSync(); } catch (_) {}
+    });
+    document.getElementById('load-maze-default').addEventListener('click', function() {
+      if (typeof eel !== 'undefined') {
+        eel.loadMaze()(applyMazeAndClose);
+      }
+    });
+    document.getElementById('load-maze-generate').addEventListener('click', function() {
+      const grid = csvToGridAndSync();
+      if (typeof eel !== 'undefined') {
+        eel.loadMazeFromGrid(grid)(applyMazeAndClose);
+      }
+    });
+    document.getElementById('load-maze-close').addEventListener('click', closeLoadMazeModal);
+    document.querySelector('[data-purpose="btn-random"]').addEventListener('click', loadRandomMazeFromBackend);
+    document.querySelector('[data-purpose="btn-buscar"]').addEventListener('click', runBuscar);
+
+    document.getElementById('modal-close').addEventListener('click', function() {
+      document.getElementById('modal-overlay').classList.remove('visible');
+    });
+
+    const chatSidebar = document.getElementById('chat-sidebar');
+    const btnChat = document.querySelector('[data-purpose="btn-chat"]');
+    const btnChatClose = document.getElementById('chat-close');
+    if (chatSidebar && chatSidebar.classList.contains('chat-visible')) {
+      if (btnChat) btnChat.classList.add('bg-white/20');
+    }
+
+    function toggleChat() {
+      chatSidebar.classList.toggle('chat-visible');
+      if (chatSidebar.classList.contains('chat-visible')) {
+        btnChat.classList.add('bg-white/20');
+      } else {
+        btnChat.classList.remove('bg-white/20');
+      }
+    }
+
+    btnChat.addEventListener('click', toggleChat);
+    btnChatClose.addEventListener('click', toggleChat);
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof eel !== 'undefined') {
+        eel.getMediaUrls()(function(urls) {
+          if (urls) {
+            mediaUrls = urls;
+            if (urls.soloVerde) {
+              const logo = document.querySelector('#logo-sidebar img');
+              if (logo) logo.src = urls.soloVerde;
+            }
+            if (urls.mouseFrente) {
+              const avatar = document.getElementById('chat-avatar');
+              if (avatar) avatar.src = urls.mouseFrente;
+            }
+          }
+        });
+        eel.getBackgroundUrl()(function(url) {
+          const bg = document.getElementById('app-background');
+          if (url) bg.style.backgroundImage = 'url(' + url + ')';
+          else bg.style.background = 'linear-gradient(135deg, #1a472a 0%, #2d5a27 50%, #1a3d16 100%)';
+        });
+      } else {
+        document.getElementById('app-background').style.background = 'linear-gradient(135deg, #1a472a 0%, #2d5a27 50%, #1a3d16 100%)';
+      }
+      mazeLoaded = false;
+      renderMaze();
+    });
+  </script>
+</body>
+</html>
